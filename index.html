@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Dino Duel</title>
+<style>
+*{box-sizing:border-box;touch-action:manipulation}body{margin:0;background:#17231c;color:#f5f5e9;font-family:system-ui,Arial;overflow:hidden}
+#app{max-width:900px;margin:auto;padding:8px}header{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:800}button{border:1px solid #71816d;border-radius:12px;background:#293b2d;color:#fff;font-weight:800;font-size:16px;padding:12px;min-height:48px;user-select:none}
+#arena{display:block;width:100%;height:auto;max-height:57vh;background:#b8dce5;border:2px solid #647b5e;border-radius:14px;margin:8px 0}
+.hud{display:grid;grid-template-columns:1fr 1fr;gap:8px}.box{background:#26362a;border-radius:10px;padding:8px;font-size:14px}.bar{height:12px;background:#4a5049;border-radius:8px;overflow:hidden;margin-top:5px}.fill{height:100%;width:100%}#h1{background:#a96b3d}#h2{background:#4285d4}
+#message{text-align:center;min-height:24px;font-weight:700;font-size:14px;padding:3px}
+.controls{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.controls button{padding:8px 2px;font-size:14px}.special{background:#784329}.restart{background:#46533c}
+#overlay{position:absolute;inset:0;background:#142016e8;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;z-index:2}
+#overlay .panel{max-width:440px;background:#26382b;border:1px solid #7e9476;border-radius:18px;padding:22px}
+#overlay h1{font-size:30px;margin:0 0 8px}#overlay p{line-height:1.45}#start{background:#477c3f;width:100%;font-size:18px}
+@media(min-width:700px){#arena{max-height:52vh}.controls button{font-size:16px}}
+</style></head><body>
+<div id="overlay"><div class="panel"><h1>🦖 DINO DUEL</h1><p>Динозавр против человечка!<br>Бей мечом, прыгай, уклоняйся и отбрасывай противника.</p><p>Управление: кнопки снизу. Сильная атака перезаряжается.</p><button id="start">НАЧАТЬ БОЙ</button></div></div>
+<div id="app">
+<header><span>🦖 DINO DUEL</span><button id="restart" class="restart">↻ Заново</button></header>
+<div class="hud">
+<div class="box"><b>Динозавр</b><div class="bar"><div id="h1" class="fill"></div></div><span id="t1">100 HP</span></div>
+<div class="box"><b>Человечек</b><div class="bar"><div id="h2" class="fill"></div></div><span id="t2">100 HP</span></div>
+</div>
+<canvas id="arena" width="800" height="430"></canvas>
+<div id="message">Нажми «Начать бой»!</div>
+<div class="controls">
+<button id="left">◀ Влево</button><button id="jump">⬆ Прыжок</button><button id="attack">⚔ Удар</button><button id="special" class="special">💥 Сильный</button><button id="right">Вправо ▶</button>
+</div>
+</div>
+<script>
+(()=> {
+const canvas=document.getElementById('arena'),ctx=canvas.getContext('2d'),$=id=>document.getElementById(id);
+let d,e,keys={},running=false,ended=false,frame=0,specialCd=0,shake=0,particles=[],messageTimer=0;
+const ground=350;
+function fighter(type,x){return {type,x,y:ground,vx:0,vy:0,hp:100,dir:type==='dino'?1:-1,attack:0,hitCooldown:0,stun:0,guard:false,walk:0}}
+function reset(){d=fighter('dino',190);e=fighter('human',610);running=true;ended=false;frame=0;specialCd=0;shake=0;particles=[];$('message').textContent='Вперёд! Подойди и атакуй.';updateHud();draw()}
+function updateHud(){$('h1').style.width=d.hp+'%';$('h2').style.width=e.hp+'%';$('t1').textContent=Math.ceil(d.hp)+' HP';$('t2').textContent=Math.ceil(e.hp)+' HP'}
+function say(s){$('message').textContent=s;messageTimer=100}
+function burst(x,y,color,n=12){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*9,vy:-Math.random()*7-1,life:25,color})}
+function hit(a,b,power,knock){if(a.attack<=0||a.hitCooldown>0)return;let reach=a.type==='dino'?105:90;if(Math.abs(a.x-b.x)<reach&&Math.sign(b.x-a.x)===a.dir){b.hp=Math.max(0,b.hp-power);b.vx=a.dir*knock;b.vy=-4;b.stun=12;a.hitCooldown=22;shake=8;burst((a.x+b.x)/2,ground-75,'#fff2a8',15);say(power>20?'💥 МОЩНЫЙ УДАР!':'⚔ Попадание! −'+power+' HP');}}
+function endCheck(){if(d.hp<=0||e.hp<=0){ended=true;running=false;say(d.hp>0?'🏆 ПОБЕДА ДИНОЗАВРА!':'💀 Человечек победил!');$('message').textContent=d.hp>0?'🏆 ПОБЕДА ДИНОЗАВРА!':'💀 Человечек победил!';$('overlay').style.display='flex';$('overlay').querySelector('h1').textContent=d.hp>0?'🏆 ПОБЕДА!':'💀 ПОРАЖЕНИЕ';$('overlay').querySelector('p').innerHTML=d.hp>0?'Динозавр выиграл бой!<br>Готов к следующей схватке?':'Человечек победил динозавра.<br>Попробуй ещё раз!';$('start').textContent='ЕЩЁ ОДИН БОЙ';}}
+function updateFighter(a){a.x+=a.vx;a.y+=a.vy;a.vx*=.82;if(a.y<ground){a.vy+=.65}else{a.y=ground;a.vy=0}a.x=Math.max(65,Math.min(735,a.x));if(a.attack>0)a.attack--;if(a.hitCooldown>0)a.hitCooldown--;if(a.stun>0)a.stun--;if(Math.abs(a.vx)>1)a.walk+=.3}
+function update(){if(!running)return;frame++;if(specialCd>0)specialCd--;d.guard=!!keys.guard;
+if(d.stun===0){if(keys.left){d.vx-=.8;d.dir=-1}if(keys.right){d.vx+=.8;d.dir=1}d.vx=Math.max(-5,Math.min(5,d.vx))}
+e.dir=e.x>d.x?-1:1;
+if(e.stun===0){let dist=Math.abs(e.x-d.x);if(dist>110)e.vx+=e.x>d.x?-0.38:0.38;else if(frame%48<20){e.attack=8;}}
+updateFighter(d);updateFighter(e);hit(d,e,14,9);hit(e,d,10,7);
+for(let p of particles){p.x+=p.vx;p.y+=p.vy;p.vy+=.25;p.life--}particles=particles.filter(p=>p.life>0);if(shake>0)shake*=.75;updateHud();endCheck();draw()}
+function drawDino(a){ctx.save();ctx.translate(a.x,a.y-a.y*0);ctx.scale(a.dir,1);let bob=Math.sin(a.walk)*3;ctx.translate(0,bob);
+ctx.lineCap='round';ctx.lineJoin='round';ctx.fillStyle='#98643f';ctx.strokeStyle='#704a31';ctx.lineWidth=5;
+ctx.beginPath();ctx.moveTo(-35,-78);ctx.quadraticCurveTo(-120,-95,-190,-20);ctx.quadraticCurveTo(-115,-38,-55,-55);ctx.closePath();ctx.fill();ctx.stroke();
+ctx.beginPath();ctx.ellipse(-35,-82,77,47,-.06,0,Math.PI*2);ctx.fill();ctx.stroke();
+// legs
+ctx.beginPath();ctx.moveTo(-72,-55);ctx.lineTo(-83,-20);ctx.lineTo(-108,0);ctx.lineTo(-70,0);ctx.lineTo(-48,-25);ctx.closePath();ctx.fill();ctx.stroke();
+ctx.beginPath();ctx.moveTo(-8,-50);ctx.lineTo(7,-17);ctx.lineTo(-9,0);ctx.lineTo(28,0);ctx.lineTo(26,-18);ctx.lineTo(15,-54);ctx.closePath();ctx.fill();ctx.stroke();
+// neck, head
+ctx.beginPath();ctx.moveTo(0,-96);ctx.lineTo(23,-135);ctx.lineTo(55,-143);ctx.lineTo(75,-112);ctx.lineTo(43,-99);ctx.lineTo(25,-66);ctx.closePath();ctx.fill();ctx.stroke();
+ctx.beginPath();ctx.moveTo(42,-137);ctx.lineTo(76,-158);ctx.lineTo(119,-146);ctx.lineTo(132,-126);ctx.lineTo(89,-115);ctx.lineTo(59,-122);ctx.closePath();ctx.fill();ctx.stroke();
+ctx.fillStyle='#e98567';ctx.beginPath();ctx.moveTo(68,-123);ctx.lineTo(127,-128);ctx.lineTo(104,-110);ctx.lineTo(70,-113);ctx.closePath();ctx.fill();
+ctx.fillStyle='white';for(let i=0;i<5;i++){ctx.beginPath();ctx.moveTo(78+i*8,-126);ctx.lineTo(83+i*8,-126);ctx.lineTo(80+i*8,-119);ctx.fill()}
+ctx.fillStyle='#f6d984';ctx.beginPath();ctx.arc(92,-145,5,0,7);ctx.fill();ctx.fillStyle='#222';ctx.beginPath();ctx.arc(93,-145,2,0,7);ctx.fill();
+// arms and sword swing
+ctx.strokeStyle='#704a31';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(20,-101);ctx.lineTo(42,-79);ctx.lineTo(54,-87);ctx.stroke();
+ctx.strokeStyle='#714c31';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(47,-81);ctx.lineTo(66,-95);ctx.stroke();
+ctx.strokeStyle='#d5e0e9';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(64,-94);ctx.lineTo(a.attack>0?132:106,a.attack>0?-135:-115);ctx.stroke();
+ctx.restore()}
+function drawHuman(a){ctx.save();ctx.translate(a.x,a.y);ctx.scale(a.dir,1);ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#26323b';ctx.lineWidth=9;
+ctx.beginPath();ctx.arc(0,-127,19,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-107);ctx.lineTo(0,-59);ctx.lineTo(-23,0);ctx.moveTo(0,-59);ctx.lineTo(24,0);ctx.moveTo(0,-94);ctx.lineTo(-23,-75);ctx.moveTo(-23,-75);ctx.lineTo(-33,-94);ctx.moveTo(0,-94);ctx.lineTo(24,-79);ctx.stroke();
+ctx.strokeStyle='#8d623b';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(24,-79);ctx.lineTo(39,-92);ctx.stroke();ctx.strokeStyle='#d7e0e8';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(39,-92);ctx.lineTo(a.attack>0?85:-2,a.attack>0?-130:-120);ctx.stroke();ctx.restore()}
+function draw(){ctx.save();if(shake>1)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);ctx.clearRect(-10,-10,820,450);ctx.fillStyle='#b8dce5';ctx.fillRect(0,0,800,430);ctx.fillStyle='#f8d56b';ctx.beginPath();ctx.arc(690,55,27,0,7);ctx.fill();ctx.fillStyle='#9bb9a0';ctx.beginPath();ctx.moveTo(0,245);ctx.lineTo(110,130);ctx.lineTo(230,245);ctx.lineTo(365,110);ctx.lineTo(520,245);ctx.lineTo(650,150);ctx.lineTo(800,245);ctx.fill();ctx.fillStyle='#789d60';ctx.fillRect(0,350,800,80);ctx.strokeStyle='#4e7643';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,350);ctx.lineTo(800,350);ctx.stroke();drawDino(d);drawHuman(e);for(let p of particles){ctx.globalAlpha=Math.max(0,p.life/25);ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,5,5)}ctx.globalAlpha=1;ctx.restore()}
+function loop(){update();requestAnimationFrame(loop)}
+function action(id,fn){const b=$(id);b.addEventListener('pointerdown',ev=>{ev.preventDefault();fn()})}
+action('left',()=>keys.left=true);action('right',()=>keys.right=true);
+['left','right'].forEach(id=>{const b=$(id);['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,()=>keys[id]=false))});
+action('jump',()=>{if(d.y>=ground-1)d.vy=-13});
+action('attack',()=>{if(running){d.attack=10;hit(d,e,14,9)}});
+action('special',()=>{if(running&&specialCd===0){d.attack=15;specialCd=150;hit(d,e,29,15);say('💥 СИЛЬНАЯ АТАКА!')}else if(specialCd>0)say('Перезарядка сильной атаки…')});
+$('start').addEventListener('click',()=>{$('overlay').style.display='none';reset()});$('restart').addEventListener('click',()=>{$('overlay').style.display='none';reset()});
+document.addEventListener('keydown',ev=>{if(['ArrowLeft','ArrowRight','ArrowUp',' '].includes(ev.key))ev.preventDefault();if(ev.key==='ArrowLeft'||ev.key==='a')keys.left=true;if(ev.key==='ArrowRight'||ev.key==='d')keys.right=true;if(ev.key==='ArrowUp'||ev.key==='w'){if(d.y>=ground-1)d.vy=-13}if(ev.key===' '){d.attack=10;hit(d,e,14,9)}});
+document.addEventListener('keyup',ev=>{if(ev.key==='ArrowLeft'||ev.key==='a')keys.left=false;if(ev.key==='ArrowRight'||ev.key==='d')keys.right=false});
+reset();$('overlay').style.display='flex';running=false;loop();
+})();
+</script></body></html>
